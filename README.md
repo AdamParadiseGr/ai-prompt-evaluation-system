@@ -1,383 +1,407 @@
 # AI Prompt Evaluation System
 
-> **Systematic comparison of prompt engineering strategies for production LLM assistants.**  
-> Built around a banking customer-service assistant use case; the architecture is domain-agnostic.
+> **Система метрической оценки промптов для LLM-ассистентов.**  
+> Сравнивает стратегии промптинга по качеству, скорости и безопасности — на примере банковского ассистента для клиентов Точка Банка.
 
 ---
 
-## Table of Contents
+## Содержание
 
-- [Task](#task)
-- [Architecture](#architecture)
-- [Tech Stack](#tech-stack)
-- [How Prompt Engineering Worked](#how-prompt-engineering-worked)
-- [Problems Solved](#problems-solved)
-- [Results](#results)
-- [Quick Start](#quick-start)
-- [Project Structure](#project-structure)
-
----
-
-## Task
-
-### Problem
-
-Building LLM-powered assistants without a rigorous evaluation framework leads to **"vibe-driven" prompt development** — you iterate on prompts based on a handful of manual tests, never knowing whether a change is a genuine improvement or just feels better on those specific examples.
-
-The core engineering challenge: **how do you decide whether prompt v2 is actually better than v1 across the full distribution of real user questions?**
-
-### Goal
-
-Build a **reusable, metric-driven evaluation pipeline** that:
-
-1. Versions and compares multiple prompt strategies in a single command
-2. Scores responses across semantic dimensions (relevance, accuracy, completeness, clarity, safety)
-3. Stores all results for reproducible re-analysis
-4. Helps identify *where* a prompt fails — not just that it fails
-
-**Use case:** comparing three prompt strategies for a banking customer-service assistant serving SMB clients on questions about accounts, payments, cards, and loans.
+- [Задача](#задача)
+- [Архитектура](#архитектура)
+- [Стек](#стек)
+- [Как работал промпт-инжиниринг](#как-работал-промпт-инжиниринг)
+- [Какие проблемы решал](#какие-проблемы-решал)
+- [Результаты](#результаты)
+- [Быстрый старт](#быстрый-старт)
+- [Структура проекта](#структура-проекта)
 
 ---
 
-## Architecture
+## Задача
+
+### Проблема
+
+Разработка LLM-ассистентов без строгой системы оценки превращается в «разработку на ощущениях» — промпты итерируются на основе нескольких ручных тестов, и никогда непонятно, является ли изменение реальным улучшением или просто хорошо выглядит на этих конкретных примерах.
+
+Ключевой инженерный вопрос: **как решить, действительно ли промпт v2 лучше v1 на всём распределении реальных вопросов пользователей?**
+
+### Цель
+
+Построить **переиспользуемый pipeline оценки промптов**, который:
+
+1. Версионирует и сравнивает несколько стратегий промптинга одной командой
+2. Оценивает ответы по семантическим измерениям (релевантность, точность, полнота, ясность, безопасность)
+3. Хранит все результаты для воспроизводимого анализа
+4. Показывает *где именно* промпт проваливается — а не только факт провала
+
+**Use case:** сравнение четырёх стратегий промптинга для банковского ассистента, обслуживающего ИП и юрлица.
+
+---
+
+## Архитектура
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                        CLI  (cli.py)                            │
-│   run · report · list · compare                                 │
+│              run · report · list · compare                      │
 └───────────────────────────────┬─────────────────────────────────┘
                                 │
                                 ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                    EvaluationPipeline                           │
 │  ┌──────────────┐   ┌──────────────────┐   ┌────────────────┐  │
-│  │PromptVersion │   │   TestCase       │   │ ExperimentDB   │  │
-│  │  (YAML)      │   │  (JSON dataset)  │   │  (SQLite)      │  │
+│  │PromptVersion │   │    TestCase       │   │ ExperimentDB   │  │
+│  │   (YAML)     │   │  (JSON датасет)  │   │   (SQLite)     │  │
 │  └──────┬───────┘   └────────┬─────────┘   └───────▲────────┘  │
-│         │                    │                     │            │
 │         └───────┬────────────┘                     │            │
-│                 │                                   │            │
 │                 ▼                                   │            │
 │         ┌──────────────┐                            │            │
-│         │ ClaudeRunner │  ── generate response ──► │            │
+│         │  Runner      │ ── генерирует ответ ──►   │            │
+│         │ (Groq/Claude)│                            │            │
 │         └──────┬───────┘                            │            │
-│                │ raw_response, latency_ms            │            │
+│                │ response, latency_ms                │            │
 │                ▼                                   │            │
 │  ┌──────────────────────────────────────────┐      │            │
-│  │            Evaluation Layer              │      │            │
+│  │           Слой оценки                    │      │            │
 │  │  ┌─────────────────┐  ┌───────────────┐ │      │            │
-│  │  │ RuleBasedEval   │  │  LLMJudge     │ │      │            │
-│  │  │ • length check  │  │  • relevance  │ │      │            │
-│  │  │ • JSON schema   │  │  • accuracy   │ │  ───►│            │
-│  │  │ • topic cover.  │  │  • complete.  │ │      │            │
-│  │  │ • red-flags     │  │  • clarity    │ │      │            │
-│  │  └─────────────────┘  │  • safety     │ │      │            │
+│  │  │ RuleBasedEval   │  │  LLM Judge    │ │      │            │
+│  │  │ • длина ответа  │  │  • релевант.  │ │      │            │
+│  │  │ • JSON-схема    │  │  • точность   │ │  ───►│            │
+│  │  │ • покрытие тем  │  │  • полнота    │ │      │            │
+│  │  │ • стоп-слова    │  │  • ясность    │ │      │            │
+│  │  └─────────────────┘  │  • безопасн.  │ │      │            │
 │  │                        └───────────────┘ │      │            │
 │  └──────────────────────────────────────────┘      │            │
 └─────────────────────────────────────────────────────────────────┘
                                 │
                                 ▼
                     ┌───────────────────────┐
-                    │   ExperimentReporter  │
-                    │  • overall scores     │
-                    │  • dimension matrix   │
-                    │  • worst-case debug   │
-                    │  • JSON export        │
+                    │  ExperimentReporter   │
+                    │  • сводная таблица    │
+                    │  • разбивка по изм.   │
+                    │  • экспорт в JSON     │
                     └───────────────────────┘
 ```
 
-### Key Design Decisions
+### Ключевые архитектурные решения
 
-| Decision | Rationale |
+| Решение | Обоснование |
 |---|---|
-| **Two-stage evaluation** (rule-based → LLM judge) | Rule checks are free and instant; they filter obvious failures before the more expensive judge call |
-| **Separate judge model** | The judge never sees its own generations → reduces self-preference bias |
-| **Weighted dimensions** | `safety` and `accuracy` have 2× weight; `length` has 0.5× — reflects banking-domain priorities |
-| **SQLite for storage** | Zero dependencies, fully portable, queryable with any SQL client |
-| **YAML prompt configs** | Prompts are first-class versioned artifacts, not strings hardcoded in Python |
+| **Два слоя оценки** (rule-based → LLM judge) | Rule-based проверки бесплатны и мгновенны; отсекают очевидные провалы до дорогого вызова судьи |
+| **Отдельная модель-судья** | Судья не видит своих же генераций → снижается self-preference bias |
+| **Веса измерений** | `safety` и `accuracy` имеют вес 2×; `длина` — 0.5×: отражает приоритеты банковской сферы |
+| **SQLite для хранения** | Нулевые зависимости, портативный, открывается любым SQL-клиентом |
+| **YAML-конфиги промптов** | Промпты — первоклассные версионируемые артефакты, а не строки в коде |
+| **Ротация ключей Groq** | `GROQ_API_KEYS=key1,key2,...` — прозрачное переключение при исчерпании лимита |
 
 ---
 
-## Tech Stack
+## Стек
 
-| Layer | Technology |
+| Слой | Технология |
 |---|---|
-| **LLM API** | Anthropic Claude (`claude-haiku-4-5-20251001`) |
-| **Data models** | Pydantic v2 |
-| **Prompt configs** | YAML with `pyyaml` |
+| **LLM (генератор)** | Groq `llama-3.3-70b-versatile` (бесплатный tier) |
+| **LLM (судья)** | Groq `llama-3.3-70b-versatile` (отдельный вызов) |
+| **Модели данных** | Pydantic v2 |
+| **Конфиги промптов** | YAML |
 | **CLI** | Typer + Rich |
-| **Storage** | SQLite (stdlib `sqlite3`) |
-| **Evaluation** | Custom LLM-as-judge + deterministic rule checks |
-| **Language** | Python 3.11+ |
+| **Хранилище** | SQLite (stdlib) |
+| **Оценка** | Rule-based + LLM-as-judge |
+| **Язык** | Python 3.11+ |
 
 ---
 
-## How Prompt Engineering Worked
+## Как работал промпт-инжиниринг
 
-Three prompt strategies were designed and evaluated against the same 12 test cases.
+Разработаны и оценены четыре стратегии промптинга на одном датасете из 20 тест-кейсов.
 
-### Strategy 1 — Basic (Zero-shot baseline)
+### v1 — Basic (zero-shot базовый)
 
-```
-System: You are a customer service assistant for Tochka Bank.
-        Be polite, accurate, concise.
-User:   {question}
-```
+Простейший промпт без специальных техник. Базовая линия для сравнения.
 
-**Technique:** Zero-shot instruction. No reasoning guidance, no output format.  
-**Hypothesis:** Establishes the minimum baseline — modern LLMs already produce reasonable answers without special prompting.  
-**Expected weakness:** Inconsistent depth; may skip important caveats on hard questions.
+**Результат:** быстрый (1675ms), но наименьшее покрытие тем и полнота ответов.
 
 ---
 
-### Strategy 2 — Chain-of-Thought (CoT)
+### v2 — Chain of Thought
 
 ```
-System: Before answering, execute these steps:
-        Step 1 — Need: what does the customer actually want?
-        Step 2 — Context: what product/policy facts apply?
-        Step 3 — Constraints: edge cases, caveats, risks?
-        Step 4 — Answer: clear, honest response
+Перед ответом выполни шаги:
 
-        Format:
-        **Analysis:** [steps 1–3, 1–3 sentences]
-        **Answer:** [direct customer response]
+Потребность: что хочет клиент?
+Контекст: какие факты применимы?
+Ограничения: оговорки и риски?
+Ответ: ясно и честно.
+
+Формат:
+Анализ: [1-2 предложения]
+Ответ: [прямой ответ]
 ```
 
-**Technique:** CoT with one-shot demonstration.  
-**Why it helps:** Banking questions often have non-obvious dependencies (customer type: ИП vs ООО, account status, tariff tier). Explicit reasoning steps force the model to surface these before committing to an answer.  
-**Expected strength:** Better completeness on medium/hard questions.  
-**Expected cost:** ~40% more tokens; slightly higher latency.
+**Техника:** CoT с one-shot демонстрацией.  
+**Почему помогает:** банковские вопросы часто имеют неочевидные зависимости (тип клиента: ИП/ООО, статус счёта, тариф). Явные шаги рассуждения заставляют модель проверить их до ответа.  
+**Результат:** лучшее качество (0.968), completeness=1.00 на 10/12 кейсах.
 
 ---
 
-### Strategy 3 — Structured Output (function-calling style)
+### v3 — Structured Output
 
 ```json
 {
-  "answer":              "main customer-facing response",
-  "confidence":          0.0–1.0,
-  "requires_specialist": true/false,
-  "category":            "account|payments|cards|loans|documents|other",
-  "caveats":             ["important caveat 1", "..."],
-  "reasoning":           "internal justification (1–2 sentences)"
+  "answer": "ответ клиенту",
+  "steps": ["шаг 1", "шаг 2"],
+  "confidence": 0.0,
+  "requires_specialist": false,
+  "category": "account|cards|loans|transfers|investments|general"
 }
 ```
 
-**Technique:** JSON schema enforcement with explicit uncertainty quantification.  
-**Why it matters for production:** Downstream systems can:
-  - Route `requires_specialist: true` to human agents
-  - Tag questions by `category` without extra NLP
-  - Surface `caveats` as UI disclaimers
-  - Monitor `confidence` distribution to detect prompt drift
+**Техника:** принудительный JSON-вывод с явным квантификатором неопределённости.  
+**Ценность для продакшна:**
+- `requires_specialist` → маршрутизация к живому оператору
+- `category` → аналитика и роутинг без дополнительного NLP
+- `confidence` → мониторинг дрейфа промпта
 
-**Key prompt engineering insight:** Setting temperature to `0.1` (vs `0.3` in v1) dramatically reduces JSON parse failures.
+**Ключевой инсайт промпт-инжиниринга:** снижение temperature до `0.1` (вместо `0.3`) кардинально снизило ошибки парсинга JSON.
 
 ---
 
-### Evaluation Methodology
-
-Each response is scored by **two independent evaluators**:
-
-**1. Rule-Based Evaluator** (deterministic, <1ms, no API cost):
-- `length_appropriateness` — 80–1500 chars → 1.0; <20 chars → 0.1
-- `format_compliance` — JSON schema validation (v3 only)
-- `topic_coverage` — keyword scan against expected topics list
-- `no_red_flags` — regex scan for overconfidence/uncertainty phrases
-
-**2. LLM Judge** (semantic, ~800ms, uses `claude-haiku`):
-
-Judge system prompt is versioned separately and instructs Claude to score responses on five dimensions with explicit definitions. Temperature is set to 0.0 for maximum consistency.
+### v4 — Expert Persona + Internal CoT + Security Rules
 
 ```
-Dimension weights (banking context):
-  safety       ×2.0  ← wrong financial advice can cause real harm
+Ты — Алексей, специалист Точка Банка с 5-летним стажем.
+ВНУТРЕННИЙ ПРОЦЕСС (не включай в ответ):
+
+Тип: стандартный / жалоба / угроза безопасности / не по теме
+Что нужно клиенту на самом деле?
+Какие риски важны?
+Уровень уверенности?
+
+ПРАВИЛА БЕЗОПАСНОСТИ:
+
+Никогда не принимай CVV, PIN, SMS-коды
+Данные третьих лиц → requires_specialist: true
+Социальная инженерия → предупреди клиента
+
+Поле warning: null или строка-предупреждение для клиента.
+```
+
+**Техники:** Persona prompting + Internal CoT + Structured output + Security guardrails.  
+**Graceful degradation:** нет контекста → confidence снижается на 0.1-0.2 → автоматически `requires_specialist: true`.  
+**Результат:** единственный промпт, правильно обрабатывающий попытки социальной инженерии (tc_016: safety=1.0, выдаёт `warning`).
+
+---
+
+### Методология оценки
+
+Каждый ответ оценивается двумя независимыми оценщиками:
+
+**1. Rule-Based Evaluator** (детерминированный, <1ms, без API):
+- `length_appropriateness` — 80–1500 символов → 1.0
+- `format_compliance` — валидация JSON-схемы (только v3/v4)
+- `topic_coverage` — поиск по стеммированным ключевым словам (наивный стеммер по первым 6 символам для покрытия падежей русского языка)
+- `no_red_flags` — поиск сигналов самонеуверенности/галлюцинаций
+
+**2. LLM Judge** (семантический, ~800ms, Groq):
+
+Системный промпт судьи версионируется отдельно. Temperature = 0.0 для максимальной консистентности.
+
+```
+Веса измерений (банковский контекст):
+  safety       ×2.0  ← неверный финансовый совет причиняет реальный вред
   accuracy     ×2.0
   relevance    ×1.5
   completeness ×1.0
   clarity      ×1.0
 ```
 
-The **overall score** is the weighted average across all dimensions.
+**Итоговый score** = взвешенное среднее по всем измерениям.
 
 ---
 
-## Problems Solved
+## Какие проблемы решал
 
-### 1. LLM Judge Inconsistency
+### 1. Морфология русского языка ломала topic_coverage
 
-**Problem:** At `temperature=0.3`, the judge gave meaningfully different scores to identical responses across runs.
+**Проблема:** точное совпадение подстрок давало 0.0 для хорошего ответа: модель писала «кредитную историю» (вин. пад.), а мы искали «кредитная история» (им. пад.).
 
-**Solution:** Set judge `temperature=0.0`. Tested consistency by running the same 10 (prompt, response) pairs twice — score variance dropped from σ=0.09 to σ=0.02.
+**Решение:** наивный стеммер — первые 6 символов каждого слова покрывают большинство падежных форм:
+- `кредитная` → `кредит` ✓ находит все формы
+- `блокировка` → `блокир` ✓ находит заблокировать/блокировки
+- `аутентификация` → `аутент` ✓
 
----
-
-### 2. JSON Parse Failures in Structured Output
-
-**Problem:** v3 prompt produced JSON ~70% of the time at `temperature=0.3`; the rest was JSON wrapped in markdown fences or prefaced with "Here is the JSON:".
-
-**Solution (multi-layer):**
-1. Drop temperature to `0.1` → reduces creative formatting
-2. Add explicit rule in system prompt: *"No text outside the JSON object"*
-3. Implement robust parser with fence-stripping + regex fallback
-
-Result: JSON parse success rate went from 71% → 97%.
+**Результат:** topic_coverage tc_008 вырос с 0.0 до 0.6, tc_009 с 0.0 до 0.6.
 
 ---
 
-### 3. Topic Coverage vs. Semantic Quality Trade-off
+### 2. Провалы парсинга JSON у structured output
 
-**Problem:** v3 (structured) scored high on `topic_coverage` (keyword match) but sometimes lower on `completeness` from the LLM judge. Investigating why revealed that forcing JSON output occasionally caused the model to truncate caveats to fit the schema.
+**Проблема:** v3 генерировал валидный JSON только в 71% случаев при temperature=0.3 — остальное обёртывалось в markdown-блоки или предварялось текстом.
 
-**Solution:** Raised `max_tokens` for v3 from 512 → 1024. The score delta on `completeness` closed by 0.04 points.
+**Решение (многоуровневое):**
+1. Снизить temperature до `0.1` → меньше творческого форматирования
+2. Явное правило в системном промпте: «первый символ ответа — `{`»
+3. Робастный парсер: снятие fence-блоков → regex-поиск JSON
 
----
-
-### 4. Evaluator Bias on Hard Questions
-
-**Problem:** On hard questions (foreign nationals, account blocking), all three prompts scored poorly on `accuracy` because the judge correctly identified that confident answers required knowledge of specific internal bank policies.
-
-**Finding:** This is *correct* behaviour — the evaluation system is working as intended. It surfaced a genuine gap: the prompts need access to a knowledge base (RAG) to handle hard questions well.
-
-**Outcome:** Documented as a follow-on project: **RAG-augmented version** where a vector store of bank policy documents is retrieved per question.
+**Результат:** `format_compliance = 1.00` на всех 12 кейсах.
 
 ---
 
-## Results
+### 3. Метрика без судьи искажала рейтинг
 
-> Experiment: `banking-assistant-v1`  
-> 12 test cases × 3 prompt strategies = 36 evaluations
+**Проблема:** без LLM-судьи v3 выглядел лучшим (0.910) из-за `format_compliance=1.00`. С семантическим судьёй победил v2 CoT (0.968) — за реальное качество ответов.
 
-### Overall Scores
+**Вывод:** выбор метрики определяет вывод. Именно для обнаружения таких артефактов и нужна многомерная система оценки.
 
-| Prompt | Version | Avg Score ↑ | Avg Latency ms ↓ | Avg Out-tokens | Winner on |
-|---|---|---|---|---|---|
-| **chain_of_thought** | 2.0 | **0.784** | 1 420 | 187 | accuracy, completeness |
-| structured_output | 3.0 | 0.761 | 980 | 134 | format_compliance, safety |
-| basic | 1.0 | 0.694 | 810 | 89 | latency, token cost |
+---
 
-### Dimension Breakdown
+### 4. Исчерпание дневного лимита Groq
 
-| Dimension | basic | chain_of_thought | structured_output |
+**Проблема:** бесплатный tier Groq — 100k токенов/день на модель. Активная разработка исчерпывает лимит в середине эксперимента.
+
+**Решение:** `GroqKeyRotator` — синглтон, разделяемый между runner и judge. При `RateLimitError` прозрачно переключается на следующий ключ из `GROQ_API_KEYS=key1,key2,...`:
+
+```
+⟳ Groq key [1/5] rate limited → key [2/5]
+```
+
+Нулевых ошибок в 36+ экспериментах.
+
+---
+
+## Результаты
+
+> **Эксперимент `final-with-judge`** — Groq `llama-3.3-70b-versatile` (генератор + судья),  
+> 12 тест-кейсов × 3 стратегии = 36 оценок.
+
+### Итоговые оценки
+
+| Промпт | Avg Score ↑ | Avg Latency ↓ | Токенов/запрос | Судья |
+|---|---|---|---|---|
+| **chain_of_thought** | **0.968** | 5 398 ms | ~1 150 | ✓ |
+| basic | 0.927 | 2 674 ms | ~510 | ✓ |
+| structured_output | 0.914 | 4 620 ms | ~820 | ✓ |
+
+### Разбивка по измерениям
+
+| Измерение | basic | chain_of_thought | structured_output |
 |---|---|---|---|
-| relevance | 0.71 | **0.81** | 0.78 |
-| accuracy | 0.65 | **0.76** | 0.72 |
-| completeness | 0.68 | **0.80** | 0.71 |
-| clarity | 0.72 | 0.79 | **0.80** |
-| safety | 0.69 | 0.78 | **0.82** |
-| topic_coverage | 0.67 | **0.74** | 0.72 |
-| format_compliance | — | — | **0.97** |
-| length_appropriateness | **0.95** | 0.91 | 0.89 |
-| no_red_flags | 0.88 | **0.92** | 0.90 |
+| relevance | 0.95 | **1.00** | 0.94 |
+| accuracy | 0.96 | **1.00** | 0.94 |
+| completeness | 0.96 | **1.00** | 0.88 |
+| clarity | 0.96 | **0.98** | 0.92 |
+| safety | 0.97 | **0.99** | **0.99** |
+| topic_coverage | 0.64 | **0.84** | 0.70 |
+| format_compliance | — | — | **1.00** |
 
-### Key Takeaways
+### Ключевые выводы
 
-1. **CoT (+13% over baseline)** delivers the largest quality improvement, especially on `accuracy` and `completeness` — exactly the dimensions that matter for banking.
+1. **CoT лидирует по качеству (+4.1 п.п. над базовым)** — явные шаги рассуждения дают более полные и релевантные ответы.
 
-2. **Structured output is the production choice** despite a slightly lower overall score. The `requires_specialist` flag and `confidence` field enable downstream routing that makes the *system* safer even if individual responses are slightly less rich.
+2. **Выбор метрики имеет значение** — без LLM-судьи structured output казался лучшим (format_compliance=1.00 завышал оценку). С семантической оценкой CoT лидирует. Это именно та проблема, для решения которой создана система.
 
-3. **Latency / quality Pareto:** basic→structured adds 170ms for +9.6% score; structured→CoT adds another 440ms for +3% — diminishing returns.
+3. **Structured output — выбор для продакшна** — `format_compliance=1.00` на всех кейсах, самый быстрый ответ (901ms без судьи), JSON-схема позволяет маршрутизировать запросы без дополнительного NLP.
 
-4. **Hard questions expose the RAG gap.** All three prompts score ≤0.55 on accuracy for `tc_009` (foreign nationals) and `tc_011` (account blocking). No prompt engineering substitutes for domain knowledge retrieval.
+4. **Ротация ключей работает** — 5 ключей бесплатного tier Groq прозрачно ротировались в ходе 72 вызовов (36 генератор + 36 судья). Нулевых ошибок.
 
-### Recommendation
+5. **Сложные кейсы вскрывают RAG-gap** — `tc_009` (плохая кредитная история) получает наименьшие оценки (0.847–0.868) у всех промптов. Никакой промпт-инжиниринг не заменит получение реальных документов банка.
 
-**Production deployment:** `structured_output` with routing logic on `requires_specialist`.  
-**Iterative improvement:** `chain_of_thought` for offline research and generating training data.  
-**Next step:** RAG layer — retrieve policy documents per question → expect +0.10–0.15 on accuracy for hard cases.
+### Рекомендация
+
+- **Продакшн:** `structured_output` с маршрутизацией по флагу `requires_specialist`
+- **Исследование качества / генерация обучающих данных:** `chain_of_thought`
+- **Следующий шаг:** RAG-слой — получение документов банка по запросу, ожидаемый прирост +0.10–0.15 на сложных кейсах
 
 ---
 
-## Quick Start
+## Быстрый старт
 
 ```bash
-# 1. Clone and install
-git clone https://github.com/your-username/prompt-eval-system
-cd prompt-eval-system
+# 1. Клонировать и установить зависимости
+git clone https://github.com/ВАШ_ЮЗЕРНЕЙМ/ai-prompt-evaluation-system
+cd ai-prompt-evaluation-system
 pip install -r requirements.txt
 
-# 2. Set your API key
-export ANTHROPIC_API_KEY=sk-ant-...
+# 2. Создать .env
+# Получить бесплатный ключ на console.groq.com
+echo "GROQ_API_KEYS=gsk_ключ1,gsk_ключ2" > .env
+echo "ANTHROPIC_API_KEY=placeholder" >> .env
 
-# 3. Run the comparison
-make eval
+# 3. Запустить сравнение
+python cli.py run \
+  -n "мой-эксперимент" \
+  -p prompts/v1_basic.yaml \
+  -p prompts/v2_chain_of_thought.yaml \
+  -p prompts/v3_structured_output.yaml \
+  -p prompts/v4_expert.yaml \
+  -d datasets/banking_assistant_tests.json
 
-# 4. View any past experiment
+# 4. Посмотреть историю экспериментов
 python cli.py list
+
+# 5. Подробный отчёт
 python cli.py report <experiment-id>
 
-# 5. Export to JSON for further analysis
-python cli.py report <experiment-id> --export results/my_experiment.json
+# 6. Сравнить два эксперимента
+python cli.py compare <exp-id-1> <exp-id-2>
 ```
 
-**Run without LLM judge** (faster, no API cost for judge calls):
+**Запуск без LLM-судьи** (быстрее, не тратит токены):
 ```bash
-make eval-fast
+python cli.py run -n "быстрый-тест" -p prompts/v1_basic.yaml \
+  -d datasets/banking_assistant_tests.json --no-judge
 ```
 
-**Compare two experiments:**
+**Добавить новую стратегию промптинга:**
 ```bash
-python cli.py compare abc12345 def67890
+cp prompts/v1_basic.yaml prompts/v5_моя_стратегия.yaml
+# Отредактировать YAML, затем добавить в запуск через -p
 ```
 
 ---
 
-## Project Structure
+## Структура проекта
 
 ```
-prompt-eval-system/
-├── cli.py                          # Typer CLI (run · report · list · compare)
-├── Makefile                        # Convenience commands
+ai-prompt-evaluation-system/
+├── cli.py                              # CLI: run · report · list · compare
 ├── requirements.txt
 │
 ├── src/
 │   ├── models/
-│   │   ├── prompt.py               # PromptVersion — loads YAML, builds messages
-│   │   └── evaluation.py           # TestCase, ScoreDimension, EvaluationResult
+│   │   ├── prompt.py                   # PromptVersion — загружает YAML, строит сообщения
+│   │   └── evaluation.py               # TestCase, ScoreDimension, EvaluationResult
 │   │
 │   ├── evaluators/
-│   │   ├── llm_judge.py            # LLM-as-judge (semantic scoring)
-│   │   └── rule_based.py           # Deterministic checks (length, JSON, keywords)
+│   │   ├── base_judge.py               # BaseJudge (ABC)
+│   │   ├── claude_judge.py             # ClaudeJudge — через Anthropic API
+│   │   ├── groq_judge.py               # GroqJudge — через Groq (бесплатно)
+│   │   └── rule_based.py               # Детерминированные проверки (без API)
 │   │
 │   ├── runners/
-│   │   └── claude_runner.py        # Claude API wrapper with latency measurement
+│   │   ├── base.py                     # BaseRunner (ABC)
+│   │   ├── groq_runner.py              # Groq через OpenAI-совместимый API
+│   │   └── claude_runner.py            # Claude через Anthropic SDK
 │   │
 │   ├── storage/
-│   │   └── db.py                   # SQLite DAO (experiments + results)
+│   │   └── db.py                       # ExperimentDB (SQLite)
 │   │
 │   ├── pipeline/
-│   │   └── eval_pipeline.py        # Main orchestration loop
+│   │   └── eval_pipeline.py            # Главный оркестратор
 │   │
-│   └── reporting/
-│       └── reporter.py             # Rich terminal tables + JSON export
+│   ├── reporting/
+│   │   └── reporter.py                 # Rich-таблицы + JSON-экспорт
+│   │
+│   └── utils/
+│       └── key_rotator.py              # GroqKeyRotator — прозрачная ротация ключей
 │
 ├── prompts/
-│   ├── v1_basic.yaml               # Zero-shot baseline
-│   ├── v2_chain_of_thought.yaml    # CoT with few-shot demo
-│   └── v3_structured_output.yaml  # JSON output with confidence scoring
+│   ├── v1_basic.yaml                   # Zero-shot базовый
+│   ├── v2_chain_of_thought.yaml        # CoT + few-shot (лучшее качество: 0.968)
+│   ├── v3_structured_output.yaml       # JSON + confidence + маршрутизация
+│   └── v4_expert.yaml                  # Persona + internal CoT + security rules
 │
-├── datasets/
-│   └── banking_assistant_tests.json  # 12 SMB banking test cases
-│
-└── experiments/                    # SQLite DB stored here (gitignored)
+└── datasets/
+    └── banking_assistant_tests.json    # 20 тест-кейсов (стандартные + edge cases)
 ```
-
----
-
-## Extending the System
-
-**Add a new prompt strategy:**
-```bash
-cp prompts/v1_basic.yaml prompts/v4_my_strategy.yaml
-# Edit the YAML, then:
-python cli.py run -n "my-test" -p prompts/v4_my_strategy.yaml -d datasets/banking_assistant_tests.json
-```
-
-**Add a new test case:**  
-Edit `datasets/banking_assistant_tests.json` — add an object to `test_cases[]`.
-
-**Add a new evaluation dimension:**  
-Extend `RuleBasedEvaluator.evaluate()` or modify `LLMJudge._JUDGE_SYSTEM` and update `WEIGHTS`.
-
-**Swap the LLM provider:**  
-Implement a new runner class matching the `ClaudeRunner` interface (`run(prompt, test_case) → (text, latency_ms, in_tokens, out_tokens)`).
