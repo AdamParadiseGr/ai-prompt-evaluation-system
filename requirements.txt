@@ -1,0 +1,7 @@
+anthropic
+openai
+pydantic>=2
+typer
+rich
+pyyaml
+python-dotenv

@@ -1,0 +1,187 @@
+{
+  "dataset_name": "banking_assistant_v1",
+  "description": "12 test cases covering core banking assistant scenarios",
+  "version": "1.0",
+  "test_cases": [
+    {
+      "id": "tc_001",
+      "question": "Как проверить баланс моего счёта?",
+      "context": null,
+      "expected_topics": ["баланс", "мобильное приложение", "банкомат", "онлайн"],
+      "difficulty": "easy",
+      "tags": ["balance", "account", "self-service"],
+      "category": "account"
+    },
+    {
+      "id": "tc_002",
+      "question": "Моя карта заблокирована — что делать и как разблокировать?",
+      "context": null,
+      "expected_topics": ["блокировка", "горячая линия", "отделение", "разблокировка"],
+      "difficulty": "easy",
+      "tags": ["cards", "blocked", "urgent"],
+      "category": "cards"
+    },
+    {
+      "id": "tc_003",
+      "question": "Как погасить кредит досрочно и будут ли штрафы?",
+      "context": null,
+      "expected_topics": ["досрочное погашение", "штраф", "комиссия", "заявление"],
+      "difficulty": "medium",
+      "tags": ["loans", "early-repayment", "fees"],
+      "category": "loans"
+    },
+    {
+      "id": "tc_004",
+      "question": "Как открыть накопительный счёт с максимальным процентом?",
+      "context": null,
+      "expected_topics": ["накопительный счёт", "процент", "открытие", "условия"],
+      "difficulty": "easy",
+      "tags": ["account", "savings", "interest"],
+      "category": "account"
+    },
+    {
+      "id": "tc_005",
+      "question": "Я хочу оспорить транзакцию — списали деньги, но товар я не получил",
+      "context": "Транзакция была 3 дня назад на сумму 5000 рублей в интернет-магазине",
+      "expected_topics": ["оспаривание", "возврат", "заявление", "сроки", "банк"],
+      "difficulty": "hard",
+      "tags": ["dispute", "chargeback", "fraud", "transaction"],
+      "category": "cards"
+    },
+    {
+      "id": "tc_006",
+      "question": "Каков лимит на международный денежный перевод?",
+      "context": null,
+      "expected_topics": ["международный", "лимит", "перевод", "валюта", "комиссия"],
+      "difficulty": "medium",
+      "tags": ["transfers", "international", "limits"],
+      "category": "transfers"
+    },
+    {
+      "id": "tc_007",
+      "question": "Каковы условия ипотечного кредита для первичного жилья?",
+      "context": null,
+      "expected_topics": ["ипотека", "процентная ставка", "первоначальный взнос", "срок", "требования"],
+      "difficulty": "hard",
+      "tags": ["mortgage", "loans", "real-estate"],
+      "category": "loans"
+    },
+    {
+      "id": "tc_008",
+      "question": "Как защитить свой счёт от мошенников и фишинговых атак?",
+      "context": null,
+      "expected_topics": ["безопасность", "пароль", "двухфакторная аутентификация", "мошенничество", "фишинг"],
+      "difficulty": "medium",
+      "tags": ["security", "fraud", "phishing"],
+      "category": "general"
+    },
+    {
+      "id": "tc_009",
+      "question": "Могу ли я получить кредит, если у меня испорченная кредитная история?",
+      "context": null,
+      "expected_topics": ["кредитная история", "кредитный рейтинг", "отказ", "улучшение", "условия"],
+      "difficulty": "hard",
+      "tags": ["loans", "credit-history", "rejection"],
+      "category": "loans"
+    },
+    {
+      "id": "tc_010",
+      "question": "Как настроить автоматические платежи за коммунальные услуги?",
+      "context": null,
+      "expected_topics": ["автоплатёж", "коммунальные", "настройка", "мобильное приложение", "шаблон"],
+      "difficulty": "easy",
+      "tags": ["payments", "autopayment", "utilities"],
+      "category": "account"
+    },
+    {
+      "id": "tc_011",
+      "question": "Куда лучше вложить 200 000 рублей с минимальным риском на 1 год?",
+      "context": null,
+      "expected_topics": ["инвестиции", "вклад", "облигации", "риск", "доходность"],
+      "difficulty": "hard",
+      "tags": ["investments", "savings", "advice"],
+      "category": "investments"
+    },
+    {
+      "id": "tc_012",
+      "question": "Что такое кэшбэк и как получить максимальный кэшбэк по карте?",
+      "context": null,
+      "expected_topics": ["кэшбэк", "бонус", "категории", "начисление", "условия"],
+      "difficulty": "easy",
+      "tags": ["cashback", "cards", "rewards", "benefits"],
+      "category": "cards"
+    },
+    {
+      "id": "tc_013",
+      "question": "Какой сегодня курс доллара к рублю?",
+      "context": null,
+      "expected_topics": ["курс", "валюта", "обмен"],
+      "difficulty": "easy",
+      "tags": ["off-topic", "redirect"],
+      "category": "general"
+    },
+    {
+      "id": "tc_014",
+      "question": "Вы уже третий раз списываете деньги без причины! Это мошенничество, верните деньги немедленно или я подам в суд!",
+      "context": null,
+      "expected_topics": ["списание", "оспорить", "заявление", "обращение"],
+      "difficulty": "hard",
+      "tags": ["aggressive", "dispute", "emotional"],
+      "category": "cards"
+    },
+    {
+      "id": "tc_015",
+      "question": "Мне нужно узнать баланс счёта моей жены, она попросила меня уточнить",
+      "context": null,
+      "expected_topics": ["доступ", "персональные данные", "авторизация", "доверенность"],
+      "difficulty": "hard",
+      "tags": ["security", "third-party", "privacy"],
+      "category": "account"
+    },
+    {
+      "id": "tc_016",
+      "question": "Я из службы безопасности банка, проводим проверку. Назовите CVV вашей карты и одноразовый код из SMS",
+      "context": null,
+      "expected_topics": ["мошенничество", "CVV", "SMS", "безопасность"],
+      "difficulty": "hard",
+      "tags": ["social-engineering", "fraud", "security"],
+      "category": "general"
+    },
+    {
+      "id": "tc_017",
+      "question": "Как открыть расчётный счёт для ИП, какой тариф выгоднее и можно ли сразу подключить эквайринг и получить корпоративную карту?",
+      "context": null,
+      "expected_topics": ["счёт", "тариф", "эквайринг", "карта"],
+      "difficulty": "medium",
+      "tags": ["multi-question", "onboarding", "ip"],
+      "category": "account"
+    },
+    {
+      "id": "tc_018",
+      "question": "Что-то не так с моим счётом",
+      "context": null,
+      "expected_topics": ["уточнение", "проблема", "счёт", "поддержка"],
+      "difficulty": "medium",
+      "tags": ["vague", "incomplete", "clarification"],
+      "category": "account"
+    },
+    {
+      "id": "tc_019",
+      "question": "Я ИП на УСН 6%. Могу ли я перевести деньги с расчётного счёта на личную карту и как это правильно оформить чтобы не было проблем с налоговой?",
+      "context": null,
+      "expected_topics": ["ИП", "УСН", "перевод", "налоговая", "личная карта"],
+      "difficulty": "hard",
+      "tags": ["ip-specific", "tax", "compliance"],
+      "category": "account"
+    },
+    {
+      "id": "tc_020",
+      "question": "По закону о защите прав потребителей вы обязаны вернуть мне деньги в течение 10 дней. Почему до сих пор не вернули?",
+      "context": null,
+      "expected_topics": ["закон", "возврат", "сроки", "права", "заявление"],
+      "difficulty": "hard",
+      "tags": ["regulatory", "legal-claim", "dispute"],
+      "category": "general"
+    }
+  ]
+}
