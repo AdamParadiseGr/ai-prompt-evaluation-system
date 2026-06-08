@@ -41,6 +41,52 @@
 
 ## Архитектура
 
+```mermaid
+flowchart TD
+    CLI(["🖥️ CLI — cli.py\nrun · report · list · compare"])
+
+    CLI -->|"промпты YAML\n+ датасет JSON"| PIPE
+
+    subgraph PIPE["⚙️ EvaluationPipeline"]
+        direction TB
+        LOAD["Загрузка данных\nPromptVersion · TestCase"]
+        LOAD --> LOOP
+
+        subgraph LOOP["Цикл: prompt × test_case"]
+            direction LR
+            RUN["🤖 Runner\nгенерирует ответ"]
+            RUN --> EVAL
+
+            subgraph EVAL["Двухслойная оценка"]
+                direction TB
+                RB["⚡ Rule-Based\nдлина · JSON-схема\nпокрытие тем · стоп-слова"]
+                LJ["🧠 LLM Judge\nrelevance ×1.5 · accuracy ×2.0\ncompleteness ×1.0 · clarity ×1.0\nsafety ×2.0"]
+            end
+        end
+    end
+
+    PIPE -->|"EvaluationResult\n+ ScoreDimension[]"| DB
+
+    DB[("🗄️ SQLite\nExperimentDB")]
+    DB --> RPT["📊 Reporter\nRich таблицы · JSON экспорт"]
+
+    subgraph PROV["Провайдеры (BaseRunner ABC)"]
+        direction LR
+        GR["GroqRunner\nllama-3.3-70b-versatile"]
+        CR["ClaudeRunner\nclaude-haiku"]
+    end
+
+    RUN -.->|"вызов"| PROV
+    LJ -.->|"вызов"| PROV
+
+    subgraph KR["🔄 GroqKeyRotator\nGROQ_API_KEYS = key1, key2, ... keyN"]
+        direction LR
+        K1(["key 1"]) -->|"RateLimitError"| K2(["key 2"]) -->|"RateLimitError"| KN(["key N"])
+    end
+
+    KR -.->|"прозрачный failover"| GR
+```
+
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                        CLI  (cli.py)                            │
